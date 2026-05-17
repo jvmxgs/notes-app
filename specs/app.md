@@ -15,6 +15,7 @@
 * Prefer composables for business logic
 * Keep components focused on UI
 * Avoid large components
+* Keep shared TypeScript interfaces in `src/interfaces/`
 
 ---
 

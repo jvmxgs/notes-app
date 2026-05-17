@@ -1,14 +1,7 @@
 import { ref, watch } from 'vue'
+import type { Note } from '../interfaces/note'
 
-export interface Note {
-  id: string
-  title: string
-  content: string
-  favorite: boolean
-  createdAt: string
-}
-
-const STORAGE_KEY = 'notes-app-notes'
+const STORAGE_KEY = import.meta.env.VITE_STORAGE_KEY || 'notes-app-notes'
 
 function loadNotes(): Note[] {
   if (typeof window === 'undefined') {
