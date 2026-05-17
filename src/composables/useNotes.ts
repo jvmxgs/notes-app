@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 export interface Note {
   id: string
@@ -8,7 +8,45 @@ export interface Note {
   createdAt: string
 }
 
-const notes = ref<Note[]>([])
+const STORAGE_KEY = 'notes-app-notes'
+
+function loadNotes(): Note[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY)
+    if (!stored) {
+      return []
+    }
+
+    const parsed = JSON.parse(stored) as Note[]
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed
+  } catch {
+    return []
+  }
+}
+
+function saveNotes(notes: Note[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+  } catch {
+    // Ignore localStorage write failures
+  }
+}
+
+const notes = ref<Note[]>(loadNotes())
+
+watch(notes, () => saveNotes(notes.value), { deep: true })
 
 export function useNotes() {
   /**
