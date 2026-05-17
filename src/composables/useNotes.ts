@@ -1,9 +1,39 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { Note } from '../interfaces/note'
 
 const notes = ref<Note[]>([])
+let initialized = false
+
+const STORAGE_KEY = (import.meta.env.VITE_STORAGE_KEY as string) || 'notes-app-notes'
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Note[]
+      if (Array.isArray(parsed)) {
+        notes.value = parsed
+      }
+    }
+  } catch (e) {
+    // ignore parse errors
+  }
+}
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes.value))
+  } catch (e) {
+    // ignore quota errors
+  }
+}
 
 export function useNotes() {
+  if (!initialized) {
+    loadFromStorage()
+    watch(notes, () => saveToStorage(), { deep: true })
+    initialized = true
+  }
   /**
    * Validates if a title is valid
    */

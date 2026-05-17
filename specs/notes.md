@@ -61,7 +61,7 @@ A note has:
 * A new note is created
 * favorite is false by default
 * createdAt is generated automatically
-* The note is stored in memory
+* The note is persisted to localStorage using the `VITE_STORAGE_KEY` environment variable
 * Inputs are cleared after creation
 * The created note is returned
 * The new note appears with a UI animation
@@ -92,6 +92,14 @@ A note has:
 * The selected note becomes active
 * The note content is displayed in the detail panel on desktop
 * The note content is expanded or opened on mobile
+
+### Detail view
+
+* The detail panel should display the selected note in read-only mode by default
+* A visible `Edit` button must be present in the detail panel
+* Clicking `Edit` opens editable fields (title, content) and shows `Save` and `Cancel` controls
+* `Cancel` reverts any unsaved changes and returns to read-only mode
+* `Save` validates and updates the note, then returns to read-only mode
 
 ---
 
