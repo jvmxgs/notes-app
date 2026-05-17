@@ -1,27 +1,26 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Note } from '../interfaces/note'
-import { useNotes } from '../composables/useNotes'
+import CreateNoteForm from './CreateNoteForm.vue'
 import Swal from 'sweetalert2'
 
-const { notes, updateNote, deleteNote } = useNotes()
+const props = defineProps<{
+  notes: Note[]
+  selectedNoteId: string | null
+  searchQuery: string
+  isCreateOpen: boolean
+}>()
 
-const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const emit = defineEmits<{
+  (event: 'toggle-create'): void
+  (event: 'close-create'): void
+  (event: 'note-created', note: Note): void
+  (event: 'select-note', id: string): void
+  (event: 'delete-note', id: string): void
+  (event: 'update-search', value: string): void
+}>()
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+const filteredNotes = computed(() => props.notes)
 
 const confirmDelete = async (id: string): Promise<void> => {
   const result = await Swal.fire({
@@ -35,7 +34,7 @@ const confirmDelete = async (id: string): Promise<void> => {
   })
 
   if (result.isConfirmed) {
-    deleteNote(id)
+    emit('delete-note', id)
     await Swal.fire({
       title: 'Deleted!',
       text: 'Your note has been deleted.',
@@ -46,107 +45,118 @@ const confirmDelete = async (id: string): Promise<void> => {
   }
 }
 
-const editNote = async (note: Note): Promise<void> => {
-  const result = await Swal.fire<{ title: string; content: string }>({
-    title: 'Edit note',
-    html: `
-      <input id="swal-title" class="swal2-input" placeholder="Title" value="${escapeHtml(note.title)}" />
-      <textarea id="swal-content" class="swal2-textarea" placeholder="Content">${escapeHtml(note.content)}</textarea>
-    `,
-    focusConfirm: false,
-    showCancelButton: true,
-    confirmButtonText: 'Save',
-    cancelButtonText: 'Cancel',
-    preConfirm: () => {
-      const titleInput = (document.getElementById('swal-title') as HTMLInputElement)?.value || ''
-      const contentInput = (document.getElementById('swal-content') as HTMLTextAreaElement)?.value || ''
-      return { title: titleInput, content: contentInput }
-    },
-  })
+const handleCreate = (note: Note) => {
+  emit('note-created', note)
+}
 
-  if (!result.isConfirmed || !result.value) {
-    return
-  }
-
-  try {
-    updateNote(note.id, {
-      title: result.value.title,
-      content: result.value.content,
-    })
-    await Swal.fire({
-      title: 'Saved!',
-      text: 'Your note has been updated.',
-      icon: 'success',
-      timer: 1400,
-      showConfirmButton: false,
-    })
-  } catch (err) {
-    await Swal.fire({
-      title: 'Unable to save',
-      text: err instanceof Error ? err.message : 'Failed to update note',
-      icon: 'error',
-    })
-  }
+const onSearch = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  emit('update-search', target.value)
 }
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto mt-10 p-5">
-    <h2 class="text-gray-800">Notes ({{ notes.length }})</h2>
+  <aside class="space-y-5">
+    <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-sm text-slate-500">Notes</p>
+          <h2 class="text-xl font-semibold text-slate-900">My notes</h2>
+        </div>
+        <button
+          v-if="!props.isCreateOpen"
+          type="button"
+          @click="$emit('toggle-create')"
+          class="hidden lg:inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        >
+          <i class="pi pi-plus"></i>
+          Add note
+        </button>
+      </div>
 
-    <div v-if="notes.length === 0" class="text-center text-gray-600 py-10 px-5">
-      <p>No notes yet. Create your first note above!</p>
+      <div class="mt-4">
+        <input
+          type="text"
+          :value="props.searchQuery"
+          @input="onSearch"
+          placeholder="Search notes"
+          class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+        />
+      </div>
     </div>
 
-    <transition-group name="note" tag="div" class="flex flex-col gap-3.75">
-      <div v-for="note in notes" :key="note.id" class="note-item p-3.75 border border-gray-300 rounded bg-white shadow-sm transition-shadow duration-300 hover:shadow-md">
-        <div class="flex justify-between items-start gap-3">
-          <div>
-            <h3 class="m-0 mb-2.5 text-gray-800 text-lg">{{ note.title }}</h3>
-            <p class="m-0 mb-2.5 text-gray-600 leading-6 whitespace-pre-wrap break-words">{{ note.content || '(No content)' }}</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <button
-              type="button"
-              @click="editNote(note)"
-              class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-semibold"
-            >
-              <i class="pi pi-pencil" aria-hidden="true"></i>
-              Edit
-            </button>
-            <button
-              type="button"
-              @click="confirmDelete(note.id)"
-              class="inline-flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-semibold"
-            >
-              <i class="pi pi-trash" aria-hidden="true"></i>
-              Delete
-            </button>
-          </div>
-        </div>
-        <div class="flex justify-between items-center text-xs text-gray-600">
-          <span class="italic">{{ formatDate(note.createdAt) }}</span>
-          <span v-if="note.favorite" class="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full text-xs">⭐ Favorite</span>
-        </div>
+    <transition name="fade-slide" mode="out-in">
+      <CreateNoteForm
+        v-if="props.isCreateOpen"
+        @created="handleCreate"
+        @cancel="$emit('close-create')"
+      />
+    </transition>
+
+    <div class="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div class="flex items-center justify-between px-2 pb-3">
+        <p class="text-sm font-semibold text-slate-900">Notes list</p>
+        <span class="text-xs text-slate-500">{{ filteredNotes.length }}</span>
       </div>
-    </transition-group>
-  </div>
+
+      <div v-if="filteredNotes.length === 0" class="px-4 py-7 text-center text-sm text-slate-500">
+        No notes found.
+      </div>
+
+      <transition-group name="note-item" tag="ul" class="space-y-2">
+        <li
+          v-for="note in filteredNotes"
+          :key="note.id"
+          @click="$emit('select-note', note.id)"
+          :class="[
+            'flex cursor-pointer items-center justify-between gap-3 rounded-3xl px-4 py-4 transition hover:bg-slate-50',
+            props.selectedNoteId === note.id ? 'bg-slate-100' : 'bg-white',
+          ]"
+        >
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold text-slate-900">{{ note.title }}</p>
+            <p class="truncate text-xs text-slate-500">{{ note.content || 'No content' }}</p>
+          </div>
+          <button
+            type="button"
+            @click.stop.prevent="confirmDelete(note.id)"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-red-600"
+            aria-label="Delete note"
+          >
+            <i class="pi pi-trash"></i>
+          </button>
+        </li>
+      </transition-group>
+    </div>
+
+    <button
+      v-if="!props.isCreateOpen"
+      @click="$emit('toggle-create')"
+      class="fixed bottom-5 right-5 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl shadow-slate-900/20 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 lg:hidden"
+      aria-label="Add note"
+    >
+      <i class="pi pi-plus text-lg"></i>
+    </button>
+  </aside>
 </template>
 
 <style scoped>
-.note-enter-from,
-.note-leave-to {
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease;
+}
+.fade-slide-enter-from,
+.fade-slide-leave-to {
   opacity: 0;
   transform: translateY(-12px);
 }
-.note-enter-active,
-.note-leave-active {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+.note-item-enter-from,
+.note-item-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
-.note-leave-active {
-  position: relative;
-}
-.note-item {
-  transform-origin: top center;
+.note-item-enter-active,
+.note-item-leave-active {
+  transition: all 0.2s ease;
 }
 </style>

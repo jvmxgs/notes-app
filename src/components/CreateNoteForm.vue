@@ -1,66 +1,203 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Swal from 'sweetalert2'
 import { useNotes } from '../composables/useNotes'
+import type { Note } from '../interfaces/note'
+
+const props = defineProps<{ open?: boolean }>()
+const emit = defineEmits<{
+  (event: 'created', note: Note): void
+  (event: 'cancel'): void
+}>()
 
 const { createNote } = useNotes()
 
 const title = ref('')
 const content = ref('')
 const error = ref('')
-const success = ref('')
+let historyStatePushed = false
+let ignorePopState = false
+
+const resetForm = () => {
+  title.value = ''
+  content.value = ''
+  error.value = ''
+}
 
 const handleSubmit = () => {
   error.value = ''
-  success.value = ''
 
   try {
     const note = createNote(title.value, content.value)
-    success.value = `Note "${note.title}" created successfully!`
-    title.value = ''
-    content.value = ''
-
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 3000)
+    cleanupHistoryState()
+    resetForm()
+    emit('created', note)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create note'
   }
 }
+
+const handleCancel = () => {
+  cleanupHistoryState()
+  resetForm()
+  emit('cancel')
+}
+
+const handleEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    handleCancel()
+  }
+}
+
+const isMobile = () => window.innerWidth < 1024
+
+const handlePopState = async () => {
+  if (!isMobile() || ignorePopState) {
+    return
+  }
+
+  if (!title.value.trim() && !content.value.trim()) {
+    handleCancel()
+    return
+  }
+
+  const result = await Swal.fire({
+    title: 'Discard note?',
+    text: 'You have unsaved changes. Do you want to discard this note?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Discard',
+    cancelButtonText: 'Keep editing',
+    reverseButtons: true,
+  })
+
+  if (result.isConfirmed) {
+    handleCancel()
+  } else {
+    ignorePopState = true
+    window.history.pushState({ createNote: true }, '')
+    ignorePopState = false
+  }
+}
+
+const pushHistoryState = () => {
+  if (!historyStatePushed && isMobile()) {
+    window.history.pushState({ createNote: true }, '')
+    historyStatePushed = true
+  }
+}
+
+const cleanupHistoryState = () => {
+  if (!historyStatePushed) {
+    return
+  }
+
+  ignorePopState = true
+  window.history.back()
+  ignorePopState = false
+  historyStatePushed = false
+}
+
+watch(
+  () => props.open,
+  open => {
+    if (open) {
+      window.addEventListener('keydown', handleEscape)
+      window.addEventListener('popstate', handlePopState)
+      pushHistoryState()
+    } else {
+      window.removeEventListener('keydown', handleEscape)
+      window.removeEventListener('popstate', handlePopState)
+      resetForm()
+      cleanupHistoryState()
+    }
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  if (props.open) {
+    window.addEventListener('keydown', handleEscape)
+    window.addEventListener('popstate', handlePopState)
+    pushHistoryState()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('popstate', handlePopState)
+  cleanupHistoryState()
+})
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-md">
-    <h2 class="mt-0 mb-5 text-gray-800 text-xl font-semibold">Create a New Note</h2>
+  <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:relative lg:mt-0" :class="props.open ? 'fixed inset-0 z-30 m-4 overflow-auto lg:static lg:m-0' : ''">
+    <div class="flex items-center justify-between gap-3 pb-4 border-b border-slate-200">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900">Add note</h3>
+        <p class="text-sm text-slate-500">Write a title and body for your note.</p>
+      </div>
+      <button
+        type="button"
+        @click="handleCancel"
+        class="inline-flex h-10 items-center justify-center rounded-full border border-slate-200 px-4 text-sm text-slate-600 transition hover:bg-slate-50 lg:hidden"
+      >
+        Cancel
+      </button>
+    </div>
 
-    <div v-if="error" class="p-3 mb-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm">{{ error }}</div>
-    <div v-if="success" class="p-3 mb-4 bg-green-50 text-green-600 border border-green-200 rounded-lg text-sm">{{ success }}</div>
-
-    <form @submit.prevent="handleSubmit">
-      <div class="mb-4">
-        <label for="title" class="block mb-1.5 font-medium text-gray-700 text-sm">Title:</label>
+    <div class="mt-4 space-y-4">
+      <div>
+        <label for="note-title" class="block text-sm font-medium text-slate-700">Title</label>
         <input
-          id="title"
+          id="note-title"
           v-model="title"
           type="text"
-          placeholder="Enter note title (min 3 characters)"
-          class="w-full p-3 border border-gray-300 rounded-lg text-sm bg-gray-50 transition-all duration-200 focus:outline-none focus:border-gray-600 focus:bg-white focus:shadow-sm"
+          placeholder="Note title"
+          class="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:bg-white"
           required
         />
       </div>
 
-      <div class="mb-4">
-        <label for="content" class="block mb-1.5 font-medium text-gray-700 text-sm">Content:</label>
+      <div>
+        <label for="note-content" class="block text-sm font-medium text-slate-700">Body</label>
         <textarea
-          id="content"
+          id="note-content"
           v-model="content"
-          placeholder="Enter note content (optional)"
           rows="5"
-          class="w-full p-3 border border-gray-300 rounded-lg text-sm bg-gray-50 transition-all duration-200 focus:outline-none focus:border-gray-600 focus:bg-white focus:shadow-sm"
+          placeholder="Write your note here..."
+          class="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:bg-white"
         ></textarea>
       </div>
 
-      <button type="submit" class="w-full bg-gray-800 text-white p-3 border-none rounded-lg cursor-pointer text-sm font-semibold transition-all duration-200 hover:bg-black hover:shadow-lg active:scale-98">Create Note</button>
-    </form>
+      <div v-if="error" class="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200">
+        {{ error }}
+      </div>
+
+      <div class="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          @click="handleCancel"
+          class="rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          @click="handleSubmit"
+          class="rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+        >
+          Add Note
+        </button>
+      </div>
+    </div>
   </div>
 </template>
+
+<style scoped>
+@media (max-width: 1023px) {
+  .fixed.inset-0 {
+    background: rgba(255, 255, 255, 0.98);
+  }
+}
+</style>
