@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import type { Note } from '../interfaces/note'
 import { useNotes } from '../composables/useNotes'
 import Swal from 'sweetalert2'
 
-const { notes, deleteNote } = useNotes()
+const { notes, updateNote, deleteNote } = useNotes()
 
 const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -13,6 +14,14 @@ const formatDate = (dateString: string): string => {
     minute: '2-digit',
   })
 }
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 
 const confirmDelete = async (id: string): Promise<void> => {
   const result = await Swal.fire({
@@ -36,6 +45,49 @@ const confirmDelete = async (id: string): Promise<void> => {
     })
   }
 }
+
+const editNote = async (note: Note): Promise<void> => {
+  const result = await Swal.fire<{ title: string; content: string }>({
+    title: 'Edit note',
+    html: `
+      <input id="swal-title" class="swal2-input" placeholder="Title" value="${escapeHtml(note.title)}" />
+      <textarea id="swal-content" class="swal2-textarea" placeholder="Content">${escapeHtml(note.content)}</textarea>
+    `,
+    focusConfirm: false,
+    showCancelButton: true,
+    confirmButtonText: 'Save',
+    cancelButtonText: 'Cancel',
+    preConfirm: () => {
+      const titleInput = (document.getElementById('swal-title') as HTMLInputElement)?.value || ''
+      const contentInput = (document.getElementById('swal-content') as HTMLTextAreaElement)?.value || ''
+      return { title: titleInput, content: contentInput }
+    },
+  })
+
+  if (!result.isConfirmed || !result.value) {
+    return
+  }
+
+  try {
+    updateNote(note.id, {
+      title: result.value.title,
+      content: result.value.content,
+    })
+    await Swal.fire({
+      title: 'Saved!',
+      text: 'Your note has been updated.',
+      icon: 'success',
+      timer: 1400,
+      showConfirmButton: false,
+    })
+  } catch (err) {
+    await Swal.fire({
+      title: 'Unable to save',
+      text: err instanceof Error ? err.message : 'Failed to update note',
+      icon: 'error',
+    })
+  }
+}
 </script>
 
 <template>
@@ -53,14 +105,24 @@ const confirmDelete = async (id: string): Promise<void> => {
             <h3 class="m-0 mb-2.5 text-gray-800 text-lg">{{ note.title }}</h3>
             <p class="m-0 mb-2.5 text-gray-600 leading-6 whitespace-pre-wrap break-words">{{ note.content || '(No content)' }}</p>
           </div>
-          <button
-            type="button"
-            @click="confirmDelete(note.id)"
-            class="inline-flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-semibold"
-          >
-            <i class="pi pi-trash" aria-hidden="true"></i>
-            Delete
-          </button>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              @click="editNote(note)"
+              class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-semibold"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+              Edit
+            </button>
+            <button
+              type="button"
+              @click="confirmDelete(note.id)"
+              class="inline-flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-semibold"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+              Delete
+            </button>
+          </div>
         </div>
         <div class="flex justify-between items-center text-xs text-gray-600">
           <span class="italic">{{ formatDate(note.createdAt) }}</span>
