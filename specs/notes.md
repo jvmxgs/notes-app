@@ -37,11 +37,14 @@ A note has:
 ## Desktop Behavior
 
 * The create form replaces the "Add Note" button
+* When the form is shown, focus the title input.
 * Pressing Escape closes the form
-* If the form contains data and Escape is pressed:
-  * discard the note immediately
-  * do not show a confirmation dialog
-
+* If the form contains data and Escape is pressed or the cancel button is pressed:
+  * dont discard the note.
+  * Show a confirmation dialog
+* If the form is empty and Escape is pressed or the cancel button is pressed
+  * discard the note inmediatly.
+  * dont show a confirmation dialog
 ---
 
 ## Mobile Behavior

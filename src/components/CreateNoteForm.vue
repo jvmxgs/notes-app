@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, nextTick } from 'vue'
 import Swal from 'sweetalert2'
 import { useNotes } from '../composables/useNotes'
 import type { Note } from '../interfaces/note'
@@ -15,6 +15,7 @@ const { createNote } = useNotes()
 const title = ref('')
 const content = ref('')
 const error = ref('')
+const titleRef = ref<HTMLInputElement | null>(null)
 let historyStatePushed = false
 let ignorePopState = false
 
@@ -22,6 +23,12 @@ const resetForm = () => {
   title.value = ''
   content.value = ''
   error.value = ''
+}
+
+const discard = () => {
+  cleanupHistoryState()
+  resetForm()
+  emit('cancel')
 }
 
 const handleSubmit = () => {
@@ -37,27 +44,9 @@ const handleSubmit = () => {
   }
 }
 
-const handleCancel = () => {
-  cleanupHistoryState()
-  resetForm()
-  emit('cancel')
-}
-
-const handleEscape = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    handleCancel()
-  }
-}
-
-const isMobile = () => window.innerWidth < 1024
-
-const handlePopState = async () => {
-  if (!isMobile() || ignorePopState) {
-    return
-  }
-
+const handleCancel = async () => {
   if (!title.value.trim() && !content.value.trim()) {
-    handleCancel()
+    discard()
     return
   }
 
@@ -72,7 +61,40 @@ const handlePopState = async () => {
   })
 
   if (result.isConfirmed) {
-    handleCancel()
+    discard()
+  }
+}
+
+const handleEscape = async (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    await handleCancel()
+  }
+}
+
+const isMobile = () => window.innerWidth < 1024
+
+const handlePopState = async () => {
+  if (!isMobile() || ignorePopState) {
+    return
+  }
+
+  if (!title.value.trim() && !content.value.trim()) {
+    discard()
+    return
+  }
+
+  const result = await Swal.fire({
+    title: 'Discard note?',
+    text: 'You have unsaved changes. Do you want to discard this note?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Discard',
+    cancelButtonText: 'Keep editing',
+    reverseButtons: true,
+  })
+
+  if (result.isConfirmed) {
+    discard()
   } else {
     ignorePopState = true
     window.history.pushState({ createNote: true }, '')
@@ -98,29 +120,11 @@ const cleanupHistoryState = () => {
   historyStatePushed = false
 }
 
-watch(
-  () => props.open,
-  open => {
-    if (open) {
-      window.addEventListener('keydown', handleEscape)
-      window.addEventListener('popstate', handlePopState)
-      pushHistoryState()
-    } else {
-      window.removeEventListener('keydown', handleEscape)
-      window.removeEventListener('popstate', handlePopState)
-      resetForm()
-      cleanupHistoryState()
-    }
-  },
-  { immediate: true },
-)
-
 onMounted(() => {
-  if (props.open) {
-    window.addEventListener('keydown', handleEscape)
-    window.addEventListener('popstate', handlePopState)
-    pushHistoryState()
-  }
+  window.addEventListener('keydown', handleEscape)
+  window.addEventListener('popstate', handlePopState)
+  pushHistoryState()
+  nextTick(() => titleRef.value?.focus())
 })
 
 onBeforeUnmount(() => {
@@ -151,6 +155,7 @@ onBeforeUnmount(() => {
         <label for="note-title" class="block text-sm font-medium text-slate-700">Title</label>
         <input
           id="note-title"
+          ref="titleRef"
           v-model="title"
           type="text"
           placeholder="Note title"
