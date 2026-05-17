@@ -6,6 +6,8 @@
 * Use Composition API
 * Use TailwindCSS
 * Use Vite
+* Use Prime Icons
+* Use SweetAlert2
 
 ---
 

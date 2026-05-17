@@ -93,9 +93,17 @@ export function useNotes() {
     return notes.value
   }
 
+  /**
+   * Deletes a note by id
+   */
+  function deleteNote(id: string): void {
+    notes.value = notes.value.filter(note => note.id !== id)
+  }
+
   return {
     notes,
     createNote,
     getNotes,
+    deleteNote,
   }
 }

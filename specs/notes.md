@@ -83,10 +83,14 @@ A note has:
 ## Rules
 
 * If the note does not exist, do nothing
+* Ask the user to confirm before deleting the note
 
 ## Expected Behavior
 
-* The note is removed from the list
+* The user is shown a confirmation prompt before the note is deleted
+* If the user confirms, the note is removed from the list
+* If the user cancels, the note is not removed
+* The note is removed with a visible UI animation, such as sliding up or fading out
 
 ---
 
