@@ -98,7 +98,6 @@ const toggleFavorite = async () => {
     <div v-else class="space-y-5">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-sm text-slate-500">Selected note</p>
           <h2 class="text-xl font-semibold text-slate-900">Selected note</h2>
         </div>
         <div class="flex items-center gap-2">
